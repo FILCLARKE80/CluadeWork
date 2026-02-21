@@ -4,21 +4,41 @@ import io
 
 import pandas as pd
 import streamlit as st
-from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
-from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 from analytics_app.modules.visualizations import build_figure
 
 MAX_SECTIONS = 10
 
-# MIFL brand colours
-_BLUE = RGBColor(0x10, 0x33, 0xCF)
-_DARK = RGBColor(0x01, 0x05, 0x04)
-_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-_GREY = RGBColor(0x4A, 0x4F, 0x5C)
-_LIGHT_BG = RGBColor(0xF0, 0xF2, 0xF8)
+# pptx is imported lazily so the app can start without python-pptx installed.
+_pptx_available = False
+try:
+    from pptx import Presentation as _Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    _pptx_available = True
+except ImportError:
+    pass
+
+
+def _check_pptx():
+    """Raise a clear error if python-pptx is not installed."""
+    if not _pptx_available:
+        raise ImportError(
+            "python-pptx is required for the Presentation Builder.\n"
+            "Install it with:  pip install python-pptx"
+        )
+
+
+def _brand_colours():
+    """Return MIFL brand colours (only call after _check_pptx)."""
+    return {
+        "BLUE": RGBColor(0x10, 0x33, 0xCF),
+        "DARK": RGBColor(0x01, 0x05, 0x04),
+        "WHITE": RGBColor(0xFF, 0xFF, 0xFF),
+        "GREY": RGBColor(0x4A, 0x4F, 0x5C),
+        "LIGHT_BG": RGBColor(0xF0, 0xF2, 0xF8),
+    }
 
 _DEFAULT_SECTION = {
     "title": "",
@@ -44,15 +64,15 @@ def _fig_to_png(fig, width=900, height=500):
 
 def _add_title_slide(prs, title_text):
     """Add a branded title slide."""
+    c = _brand_colours()
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank layout
 
     # Blue banner across top
-    from pptx.util import Emu as _E
     shp = slide.shapes.add_shape(
-        1, _E(0), _E(0), prs.slide_width, Inches(2.2),  # MSO_SHAPE.RECTANGLE = 1
+        1, Emu(0), Emu(0), prs.slide_width, Inches(2.2),  # MSO_SHAPE.RECTANGLE = 1
     )
     shp.fill.solid()
-    shp.fill.fore_color.rgb = _BLUE
+    shp.fill.fore_color.rgb = c["BLUE"]
     shp.line.fill.background()
 
     # Title text
@@ -63,7 +83,7 @@ def _add_title_slide(prs, title_text):
     p.text = title_text
     p.font.size = Pt(36)
     p.font.bold = True
-    p.font.color.rgb = _WHITE
+    p.font.color.rgb = c["WHITE"]
     p.font.name = "Calibri"
     p.alignment = PP_ALIGN.LEFT
 
@@ -78,6 +98,7 @@ def _add_title_slide(prs, title_text):
 
 def _add_section_slide(prs, section, panels, df):
     """Add a content slide for one section."""
+    c = _brand_colours()
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
     slide_w = prs.slide_width
     slide_h = prs.slide_height
@@ -85,7 +106,7 @@ def _add_section_slide(prs, section, panels, df):
     # ── Top bar ──────────────────────────────────────────────────────────────
     bar = slide.shapes.add_shape(1, Emu(0), Emu(0), slide_w, Inches(0.7))
     bar.fill.solid()
-    bar.fill.fore_color.rgb = _BLUE
+    bar.fill.fore_color.rgb = c["BLUE"]
     bar.line.fill.background()
 
     # Section title in bar
@@ -96,7 +117,7 @@ def _add_section_slide(prs, section, panels, df):
     p.text = section.get("title") or "Untitled Section"
     p.font.size = Pt(22)
     p.font.bold = True
-    p.font.color.rgb = _WHITE
+    p.font.color.rgb = c["WHITE"]
     p.font.name = "Calibri"
 
     # ── Charts ───────────────────────────────────────────────────────────────
@@ -153,7 +174,7 @@ def _add_section_slide(prs, section, panels, df):
             Inches(9.4), Inches(1.9),
         )
         nbox.fill.solid()
-        nbox.fill.fore_color.rgb = _LIGHT_BG
+        nbox.fill.fore_color.rgb = c["LIGHT_BG"]
         nbox.line.fill.background()
 
         # Narrative text
@@ -170,7 +191,7 @@ def _add_section_slide(prs, section, panels, df):
         label.text = "Narrative"
         label.font.size = Pt(11)
         label.font.bold = True
-        label.font.color.rgb = _BLUE
+        label.font.color.rgb = c["BLUE"]
         label.font.name = "Calibri"
         label.space_after = Pt(4)
 
@@ -178,14 +199,15 @@ def _add_section_slide(prs, section, panels, df):
         body = tf.add_paragraph()
         body.text = narrative_text
         body.font.size = Pt(10)
-        body.font.color.rgb = _DARK
+        body.font.color.rgb = c["DARK"]
         body.font.name = "Calibri"
         body.line_spacing = Pt(14)
 
 
 def generate_pptx(sections, panels, df, report_title="Analytics Report"):
     """Generate a PowerPoint file and return bytes."""
-    prs = Presentation()
+    _check_pptx()
+    prs = _Presentation()
     prs.slide_width = Inches(10)
     prs.slide_height = Inches(7.5)
 
@@ -202,6 +224,15 @@ def generate_pptx(sections, panels, df, report_title="Analytics Report"):
 
 def render_presentation_builder(df: pd.DataFrame, panels: list):
     """Render the presentation builder UI."""
+    if not _pptx_available:
+        st.subheader("Presentation Builder")
+        st.warning(
+            "**python-pptx** is not installed. "
+            "Install it to enable the Presentation Builder:\n\n"
+            "```\npip install python-pptx kaleido\n```"
+        )
+        return
+
     _ensure_pres_state()
 
     st.subheader("Presentation Builder")
