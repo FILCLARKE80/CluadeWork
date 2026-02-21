@@ -55,10 +55,10 @@ def render_casting_step(df: pd.DataFrame, profile: pd.DataFrame):
         st.session_state["cast_report"] = cast_report
         st.session_state["cast_config"] = cast_config
 
-    if st.session_state.get("cast_df") is not None and st.session_state.get("cast_report") is not None:
-        report = st.session_state["cast_report"]
-        cast_df = st.session_state["cast_df"]
+    report = st.session_state.get("cast_report")
+    cast_df = st.session_state.get("cast_df")
 
+    if report is not None and isinstance(report, list) and cast_df is not None:
         # Show casting results
         successes = [r for r in report if r["status"] == "success"]
         warnings = [r for r in report if r["status"] == "warning"]
