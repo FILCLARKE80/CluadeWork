@@ -41,6 +41,10 @@ def render_ai_config_sidebar():
         )
         st.session_state["anthropic_api_key"] = api_key
 
+        # Clear stale widget value that may not exist in current MODEL_OPTIONS
+        if st.session_state.get("sidebar_model") not in MODEL_OPTIONS:
+            st.session_state.pop("sidebar_model", None)
+
         saved_model = st.session_state.get("ai_model")
         if saved_model not in MODEL_OPTIONS:
             saved_model = MODEL_OPTIONS[0]

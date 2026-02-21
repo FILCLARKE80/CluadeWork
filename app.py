@@ -285,7 +285,7 @@ _DEFAULTS = {
     "dashboard_panels": None,
     "dashboard_layout": None,
     "anthropic_api_key": None,
-    "ai_model": None,
+    "ai_model": "claude-sonnet-4-20250514",
     "ai_narrative": None,
     "pres_sections": [],
 }
