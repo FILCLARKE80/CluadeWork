@@ -46,7 +46,7 @@ def render_ai_config_sidebar():
             "Model",
             options=MODEL_OPTIONS,
             index=MODEL_OPTIONS.index(
-                st.session_state.get("ai_model") or MODEL_OPTIONS[0]
+                st.session_state.get("ai_model", MODEL_OPTIONS[0])
             ),
             key="sidebar_model",
         )
