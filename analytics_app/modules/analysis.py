@@ -6,6 +6,7 @@ import streamlit as st
 
 from analytics_app.modules.visualizations import CHART_TYPES, render_chart
 from analytics_app.modules.narrative import render_narrative
+from analytics_app.modules.ai_narrative import render_ai_narrative
 
 
 AGG_FUNCTIONS = ["sum", "mean", "median", "count", "min", "max", "std"]
@@ -169,7 +170,7 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
                 if result_df is not None:
                     result_dfs.append(result_df)
 
-    # ── Narrative (uses first panel's config) ───────────────────────────────
+    # ── Statistical narrative (uses first panel's config) ─────────────────
     if panels:
         first = panels[0]
         if first["metrics"]:
@@ -180,6 +181,10 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
                 first["dimensions"],
                 first["agg_func"],
             )
+
+    # ── AI-powered narrative ────────────────────────────────────────────────
+    st.divider()
+    render_ai_narrative(filtered_df, panels, result_dfs)
 
     # ── Download ────────────────────────────────────────────────────────────
     if result_dfs:

@@ -10,6 +10,7 @@ from analytics_app.modules.data_ingestion import render_upload_step
 from analytics_app.modules.data_profiler import render_profiling_step
 from analytics_app.modules.type_caster import render_casting_step
 from analytics_app.modules.analysis import render_analysis_step
+from analytics_app.modules.ai_narrative import render_ai_config_sidebar
 
 
 # ── Page config ──────────────────────────────────────────────────────────────
@@ -30,6 +31,9 @@ _DEFAULTS = {
     "current_step": 1,
     "dashboard_panels": None,
     "dashboard_layout": None,
+    "anthropic_api_key": None,
+    "ai_model": None,
+    "ai_narrative": None,
 }
 for key, val in _DEFAULTS.items():
     if key not in st.session_state:
@@ -77,6 +81,8 @@ with st.sidebar:
         for key in _DEFAULTS:
             st.session_state[key] = _DEFAULTS[key]
         st.rerun()
+
+render_ai_config_sidebar()
 
 
 # ── Main content area ────────────────────────────────────────────────────────

@@ -1,0 +1,189 @@
+"""AI-powered narrative generation using the Claude API."""
+
+import os
+
+import anthropic
+import pandas as pd
+import numpy as np
+import streamlit as st
+
+
+MODEL_OPTIONS = [
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+]
+
+
+def _get_client() -> anthropic.Anthropic | None:
+    """Return an Anthropic client using the configured API key, or None."""
+    api_key = st.session_state.get("anthropic_api_key") or os.environ.get(
+        "ANTHROPIC_API_KEY"
+    )
+    if not api_key:
+        return None
+    return anthropic.Anthropic(api_key=api_key)
+
+
+def render_ai_config_sidebar():
+    """Render AI configuration controls in the sidebar."""
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("AI Insights")
+
+        env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        api_key = st.text_input(
+            "Anthropic API Key",
+            type="password",
+            value=st.session_state.get("anthropic_api_key", env_key),
+            key="sidebar_api_key",
+            help="Required for AI-generated narratives. Set here or via ANTHROPIC_API_KEY env var.",
+        )
+        st.session_state["anthropic_api_key"] = api_key
+
+        model = st.selectbox(
+            "Model",
+            options=MODEL_OPTIONS,
+            index=MODEL_OPTIONS.index(
+                st.session_state.get("ai_model", MODEL_OPTIONS[0])
+            ),
+            key="sidebar_model",
+        )
+        st.session_state["ai_model"] = model
+
+        if api_key:
+            st.caption("API key configured.")
+        else:
+            st.caption("Enter an API key to enable AI insights.")
+
+
+def _build_data_context(
+    df: pd.DataFrame,
+    panels: list,
+    agg_results: list[pd.DataFrame],
+) -> str:
+    """Build a concise data context string to send to the model."""
+    lines = []
+
+    # Dataset overview
+    n_rows, n_cols = df.shape
+    lines.append(f"Dataset: {n_rows:,} rows, {n_cols} columns.")
+    lines.append(f"Columns: {', '.join(df.columns)}")
+    lines.append("")
+
+    # Numeric summary
+    numeric_cols = df.select_dtypes(include="number").columns.tolist()
+    if numeric_cols:
+        desc = df[numeric_cols].describe().round(2)
+        lines.append("Numeric summary:")
+        lines.append(desc.to_string())
+        lines.append("")
+
+    # Per-panel aggregated data
+    for i, (panel, agg_df) in enumerate(zip(panels, agg_results)):
+        lines.append(f"--- Panel {i + 1}: {panel.get('chart_type', 'Chart')} ---")
+        lines.append(f"Metrics: {panel.get('metrics', [])}")
+        lines.append(f"Dimensions (group by): {panel.get('dimensions', [])}")
+        lines.append(f"Aggregation: {panel.get('agg_func', 'sum')}")
+
+        if agg_df is not None and not agg_df.empty:
+            # Truncate large tables to keep prompt concise
+            display_df = agg_df.head(50)
+            lines.append(f"Aggregated data ({len(agg_df)} rows, showing top 50):")
+            lines.append(display_df.to_string(index=False))
+        else:
+            lines.append("(No aggregated data available for this panel.)")
+        lines.append("")
+
+    # Correlation matrix for numeric columns in the dataset
+    if len(numeric_cols) >= 2:
+        corr = df[numeric_cols].corr().round(3)
+        lines.append("Correlation matrix:")
+        lines.append(corr.to_string())
+
+    return "\n".join(lines)
+
+
+def generate_ai_narrative(
+    df: pd.DataFrame,
+    panels: list,
+    agg_results: list[pd.DataFrame],
+) -> str | None:
+    """Call the Claude API and return an AI-generated narrative."""
+    client = _get_client()
+    if client is None:
+        return None
+
+    model = st.session_state.get("ai_model", MODEL_OPTIONS[0])
+    data_context = _build_data_context(df, panels, agg_results)
+
+    system_prompt = (
+        "You are a senior data analyst. The user has uploaded a CSV dataset "
+        "and built a dashboard with one or more chart panels. Your job is to "
+        "provide a clear, insightful narrative covering:\n"
+        "1. Key trends — what direction are the metrics moving and why?\n"
+        "2. Drivers — which dimensions or categories are driving the numbers?\n"
+        "3. Correlations — which metrics move together and what might that mean?\n"
+        "4. Anomalies — any outliers, sudden changes, or unexpected patterns.\n"
+        "5. Actionable takeaways — brief recommendations based on the data.\n\n"
+        "Keep your response concise (under 400 words). Use markdown formatting. "
+        "Reference specific numbers and categories from the data."
+    )
+
+    user_message = (
+        "Here is the data context for the dashboard:\n\n"
+        f"{data_context}\n\n"
+        "Please provide a narrative analysis of this data."
+    )
+
+    try:
+        with client.messages.stream(
+            model=model,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        ) as stream:
+            final = stream.get_final_message()
+
+        return final.content[0].text
+
+    except anthropic.AuthenticationError:
+        return "**Error:** Invalid API key. Please check your Anthropic API key in the sidebar."
+    except anthropic.RateLimitError:
+        return "**Error:** Rate limited. Please wait a moment and try again."
+    except anthropic.APIStatusError as e:
+        return f"**Error:** API error ({e.status_code}). Please try again later."
+    except anthropic.APIConnectionError:
+        return "**Error:** Could not connect to the Anthropic API. Check your network."
+
+
+def render_ai_narrative(
+    df: pd.DataFrame,
+    panels: list,
+    agg_results: list[pd.DataFrame],
+):
+    """Render the AI narrative section in the dashboard."""
+    st.subheader("AI-Powered Insights")
+
+    has_key = bool(
+        st.session_state.get("anthropic_api_key")
+        or os.environ.get("ANTHROPIC_API_KEY")
+    )
+
+    if not has_key:
+        st.info(
+            "Enter your Anthropic API key in the sidebar to enable "
+            "AI-generated data narratives."
+        )
+        return
+
+    if st.button("Generate AI Narrative", type="primary", key="gen_ai_narrative"):
+        with st.spinner("Analysing your data with Claude..."):
+            narrative = generate_ai_narrative(df, panels, agg_results)
+            if narrative:
+                st.session_state["ai_narrative"] = narrative
+
+    # Display cached narrative
+    cached = st.session_state.get("ai_narrative")
+    if cached:
+        st.markdown(cached)
