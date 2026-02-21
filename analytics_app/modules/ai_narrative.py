@@ -41,12 +41,11 @@ def render_ai_config_sidebar():
         )
         st.session_state["anthropic_api_key"] = api_key
 
+        current_model = st.session_state.get("ai_model") or MODEL_OPTIONS[0]
         model = st.selectbox(
             "Model",
             options=MODEL_OPTIONS,
-            index=MODEL_OPTIONS.index(
-                st.session_state.get("ai_model", MODEL_OPTIONS[0])
-            ),
+            index=MODEL_OPTIONS.index(current_model),
             key="sidebar_model",
         )
         st.session_state["ai_model"] = model
