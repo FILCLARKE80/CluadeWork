@@ -30,9 +30,9 @@ _DEFAULT_PANEL = {
 
 def _ensure_dashboard_state():
     """Initialise dashboard session state if needed."""
-    if "dashboard_panels" not in st.session_state:
+    if not st.session_state.get("dashboard_panels"):
         st.session_state["dashboard_panels"] = [_DEFAULT_PANEL.copy()]
-    if "dashboard_layout" not in st.session_state:
+    if not st.session_state.get("dashboard_layout"):
         st.session_state["dashboard_layout"] = "1 column"
 
 
