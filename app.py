@@ -28,6 +28,8 @@ _DEFAULTS = {
     "cast_df": None,
     "cast_report": None,
     "current_step": 1,
+    "dashboard_panels": None,
+    "dashboard_layout": None,
 }
 for key, val in _DEFAULTS.items():
     if key not in st.session_state:
