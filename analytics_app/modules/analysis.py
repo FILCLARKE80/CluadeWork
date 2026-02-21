@@ -57,12 +57,13 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
     # ── Global controls ─────────────────────────────────────────────────────
     ctrl_a, ctrl_b, ctrl_c = st.columns([2, 2, 6])
     with ctrl_a:
+        layout_keys = list(LAYOUT_OPTIONS.keys())
+        current_layout = st.session_state.get("dashboard_layout")
+        layout_idx = layout_keys.index(current_layout) if current_layout in layout_keys else 0
         layout_choice = st.selectbox(
             "Dashboard layout",
-            options=list(LAYOUT_OPTIONS.keys()),
-            index=list(LAYOUT_OPTIONS.keys()).index(
-                st.session_state["dashboard_layout"]
-            ),
+            options=layout_keys,
+            index=layout_idx,
             key="layout_select",
         )
         st.session_state["dashboard_layout"] = layout_choice
