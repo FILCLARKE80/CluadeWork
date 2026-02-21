@@ -4,7 +4,37 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import streamlit as st
+
+
+# ── MIFL-branded Plotly colour sequence & template ──────────────────────────
+_MIFL_COLORS = [
+    "#1033CF",  # Persian Blue (primary)
+    "#0D2A8A",  # Accent dark blue
+    "#6B8ADB",  # Mid blue
+    "#2E5BCC",  # Intermediate blue
+    "#8FAEE8",  # Light blue
+    "#0F7B3F",  # Green accent
+    "#C67D0A",  # Amber accent
+    "#7C3AED",  # Purple accent
+    "#CF1054",  # Rose accent
+    "#10A5CF",  # Teal accent
+]
+
+_mifl_template = go.layout.Template()
+_mifl_template.layout = go.Layout(
+    font=dict(family="Inter, sans-serif", color="#010504"),
+    title=dict(font=dict(family="Montserrat, sans-serif", size=18, color="#010504")),
+    colorway=_MIFL_COLORS,
+    paper_bgcolor="#FFFFFF",
+    plot_bgcolor="#FAFBFE",
+    xaxis=dict(gridcolor="#E1E5F0", linecolor="#D0D5E4"),
+    yaxis=dict(gridcolor="#E1E5F0", linecolor="#D0D5E4"),
+    hoverlabel=dict(font_family="Inter, sans-serif"),
+)
+pio.templates["mifl"] = _mifl_template
+pio.templates.default = "plotly+mifl"
 
 
 CHART_TYPES = [
@@ -254,7 +284,7 @@ def _heatmap(df, metrics, dimensions, agg_func, title):
         pivot_df,
         title=title or f"{metrics[0]} by {dimensions[0]} × {dimensions[1]}",
         aspect="auto",
-        color_continuous_scale="Viridis",
+        color_continuous_scale=["#E8EDFA", "#6B8ADB", "#1033CF", "#0D2A8A"],
     )
     st.plotly_chart(fig, use_container_width=True)
     return pivot_df
