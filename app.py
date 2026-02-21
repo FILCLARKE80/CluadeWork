@@ -287,6 +287,7 @@ _DEFAULTS = {
     "anthropic_api_key": None,
     "ai_model": None,
     "ai_narrative": None,
+    "pres_sections": [],
 }
 for key, val in _DEFAULTS.items():
     if key not in st.session_state:

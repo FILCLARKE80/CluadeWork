@@ -51,6 +51,33 @@ CHART_TYPES = [
 ]
 
 
+def build_figure(
+    df: pd.DataFrame,
+    chart_type: str,
+    metrics: list,
+    dimensions: list,
+    agg_func: str = "sum",
+    color_dim: str = None,
+    title: str = "",
+):
+    """Build and return a Plotly figure without rendering it (for export)."""
+    builders = {
+        "Bar Chart": _build_bar,
+        "Line Chart": _build_line,
+        "Pie Chart": _build_pie,
+        "Scatter Plot": _build_scatter,
+        "Sankey Diagram": _build_sankey,
+        "Heatmap": _build_heatmap,
+        "Histogram": _build_histogram,
+        "Box Plot": _build_box,
+        "Treemap": _build_treemap,
+    }
+    builder = builders.get(chart_type)
+    if builder is None:
+        return None
+    return builder(df, metrics, dimensions, agg_func, color_dim, title)
+
+
 def render_chart(
     df: pd.DataFrame,
     chart_type: str,
@@ -97,6 +124,130 @@ def _aggregate(df, metrics, dimensions, agg_func):
     agg_df = df.groupby(dimensions, dropna=False).agg(agg_dict).reset_index()
     return agg_df
 
+
+# ── Figure builders (return fig without rendering) ───────────────────────────
+
+def _build_bar(df, metrics, dimensions, agg_func, color_dim, title):
+    if not metrics:
+        return None
+    agg_df = _aggregate(df, metrics, dimensions, agg_func)
+    x_col = dimensions[0] if dimensions else "_group"
+    if len(metrics) == 1:
+        fig = px.bar(
+            agg_df, x=x_col, y=metrics[0],
+            color=color_dim if color_dim and color_dim in agg_df.columns else None,
+            title=title or f"{metrics[0]} by {x_col}", barmode="group",
+        )
+    else:
+        id_vars = dimensions if dimensions else ["_group"]
+        melted = agg_df.melt(id_vars=id_vars, value_vars=metrics, var_name="Metric", value_name="Value")
+        fig = px.bar(melted, x=id_vars[0], y="Value", color="Metric",
+                     title=title or f"Metrics by {id_vars[0]}", barmode="group")
+    fig.update_layout(xaxis_tickangle=-45)
+    return fig
+
+
+def _build_line(df, metrics, dimensions, agg_func, color_dim, title):
+    if not metrics:
+        return None
+    agg_df = _aggregate(df, metrics, dimensions, agg_func)
+    if dimensions:
+        x_col = dimensions[0]
+    else:
+        x_col = "_index"
+        agg_df[x_col] = agg_df.index
+    if len(metrics) == 1:
+        fig = px.line(agg_df, x=x_col, y=metrics[0],
+                      color=color_dim if color_dim and color_dim in agg_df.columns else None,
+                      title=title or f"{metrics[0]} over {x_col}", markers=True)
+    else:
+        id_vars = dimensions if dimensions else [x_col]
+        melted = agg_df.melt(id_vars=id_vars, value_vars=metrics, var_name="Metric", value_name="Value")
+        fig = px.line(melted, x=id_vars[0], y="Value", color="Metric",
+                      title=title or f"Metrics over {id_vars[0]}", markers=True)
+    return fig
+
+
+def _build_pie(df, metrics, dimensions, agg_func, _color_dim, title):
+    if not metrics or not dimensions:
+        return None
+    agg_df = _aggregate(df, [metrics[0]], [dimensions[0]], agg_func)
+    fig = px.pie(agg_df, names=dimensions[0], values=metrics[0],
+                 title=title or f"{metrics[0]} by {dimensions[0]}", hole=0.3)
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    return fig
+
+
+def _build_scatter(df, metrics, dimensions, _agg_func, color_dim, title):
+    if len(metrics) < 2:
+        return None
+    fig = px.scatter(df, x=metrics[0], y=metrics[1],
+                     color=color_dim if color_dim and color_dim in df.columns else None,
+                     title=title or f"{metrics[1]} vs {metrics[0]}", opacity=0.7)
+    return fig
+
+
+def _build_sankey(df, metrics, dimensions, agg_func, _color_dim, title):
+    if len(dimensions) < 2:
+        return None
+    metric = metrics[0] if metrics else None
+    source_col, target_col = dimensions[0], dimensions[1]
+    if metric:
+        flow_df = df.groupby([source_col, target_col])[metric].agg(agg_func).reset_index()
+        flow_df.columns = ["source", "target", "value"]
+    else:
+        flow_df = df.groupby([source_col, target_col]).size().reset_index(name="value")
+    all_nodes = list(pd.concat([flow_df["source"], flow_df["target"]]).unique())
+    node_map = {name: i for i, name in enumerate(all_nodes)}
+    fig = go.Figure(data=[go.Sankey(
+        node=dict(pad=15, thickness=20, line=dict(color="black", width=0.5), label=all_nodes),
+        link=dict(source=[node_map[s] for s in flow_df["source"]],
+                  target=[node_map[t] for t in flow_df["target"]],
+                  value=flow_df["value"].tolist()),
+    )])
+    fig.update_layout(title_text=title or f"Flow: {source_col} → {target_col}", font_size=12)
+    return fig
+
+
+def _build_heatmap(df, metrics, dimensions, agg_func, _color_dim, title):
+    if len(dimensions) < 2 or not metrics:
+        return None
+    pivot_df = df.pivot_table(values=metrics[0], index=dimensions[0],
+                              columns=dimensions[1], aggfunc=agg_func, fill_value=0)
+    fig = px.imshow(pivot_df, title=title or f"{metrics[0]} by {dimensions[0]} × {dimensions[1]}",
+                    aspect="auto", color_continuous_scale=["#E8EDFA", "#6B8ADB", "#1033CF", "#0D2A8A"])
+    return fig
+
+
+def _build_histogram(df, metrics, _dimensions, _agg_func, color_dim, title):
+    if not metrics:
+        return None
+    fig = px.histogram(df, x=metrics[0],
+                       color=color_dim if color_dim and color_dim in df.columns else None,
+                       title=title or f"Distribution of {metrics[0]}", nbins=30, marginal="box")
+    return fig
+
+
+def _build_box(df, metrics, dimensions, _agg_func, _color_dim, title):
+    if not metrics:
+        return None
+    x_col = dimensions[0] if dimensions else None
+    fig = px.box(df, x=x_col, y=metrics[0],
+                 title=title or f"Distribution of {metrics[0]}" + (f" by {x_col}" if x_col else ""),
+                 points="outliers")
+    return fig
+
+
+def _build_treemap(df, metrics, dimensions, agg_func, _color_dim, title):
+    if not dimensions or not metrics:
+        return None
+    agg_df = _aggregate(df, [metrics[0]], dimensions, agg_func)
+    fig = px.treemap(agg_df, path=dimensions, values=metrics[0],
+                     title=title or f"{metrics[0]} by {', '.join(dimensions)}")
+    return fig
+
+
+# ── Chart renderers (build + display in Streamlit) ──────────────────────────
 
 def _bar_chart(df, metrics, dimensions, agg_func, color_dim, title):
     if not metrics:
