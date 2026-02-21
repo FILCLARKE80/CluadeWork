@@ -9,9 +9,9 @@ import streamlit as st
 
 
 MODEL_OPTIONS = [
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5",
+    "claude-sonnet-4-20250514",
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-20250514",
 ]
 
 
@@ -45,7 +45,9 @@ def render_ai_config_sidebar():
         model = st.selectbox(
             "Model",
             options=MODEL_OPTIONS,
-            index=MODEL_OPTIONS.index(current_model),
+            index=MODEL_OPTIONS.index(
+                st.session_state.get("ai_model") or MODEL_OPTIONS[0]
+            ),
             key="sidebar_model",
         )
         st.session_state["ai_model"] = model
@@ -150,8 +152,10 @@ def generate_ai_narrative(
         return "**Error:** Invalid API key. Please check your Anthropic API key in the sidebar."
     except anthropic.RateLimitError:
         return "**Error:** Rate limited. Please wait a moment and try again."
+    except anthropic.BadRequestError as e:
+        return f"**Error:** Bad request ({e.status_code}): {e.message}"
     except anthropic.APIStatusError as e:
-        return f"**Error:** API error ({e.status_code}). Please try again later."
+        return f"**Error:** API error ({e.status_code}): {e.message}"
     except anthropic.APIConnectionError:
         return "**Error:** Could not connect to the Anthropic API. Check your network."
 

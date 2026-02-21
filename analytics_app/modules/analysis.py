@@ -7,6 +7,7 @@ import streamlit as st
 from analytics_app.modules.visualizations import CHART_TYPES, render_chart
 from analytics_app.modules.narrative import render_narrative
 from analytics_app.modules.ai_narrative import render_ai_narrative
+from analytics_app.modules.presentation import render_presentation_builder
 
 
 AGG_FUNCTIONS = ["sum", "mean", "median", "count", "min", "max", "std"]
@@ -30,9 +31,9 @@ _DEFAULT_PANEL = {
 
 def _ensure_dashboard_state():
     """Initialise dashboard session state if needed."""
-    if "dashboard_panels" not in st.session_state:
+    if not st.session_state.get("dashboard_panels"):
         st.session_state["dashboard_panels"] = [_DEFAULT_PANEL.copy()]
-    if "dashboard_layout" not in st.session_state:
+    if not st.session_state.get("dashboard_layout"):
         st.session_state["dashboard_layout"] = "1 column"
 
 
@@ -57,12 +58,13 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
     # ── Global controls ─────────────────────────────────────────────────────
     ctrl_a, ctrl_b, ctrl_c = st.columns([2, 2, 6])
     with ctrl_a:
+        layout_keys = list(LAYOUT_OPTIONS.keys())
+        current_layout = st.session_state.get("dashboard_layout")
+        layout_idx = layout_keys.index(current_layout) if current_layout in layout_keys else 0
         layout_choice = st.selectbox(
             "Dashboard layout",
-            options=list(LAYOUT_OPTIONS.keys()),
-            index=list(LAYOUT_OPTIONS.keys()).index(
-                st.session_state["dashboard_layout"]
-            ),
+            options=layout_keys,
+            index=layout_idx,
             key="layout_select",
         )
         st.session_state["dashboard_layout"] = layout_choice
@@ -191,6 +193,10 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
         st.divider()
         combined = pd.concat(result_dfs, ignore_index=True)
         _render_download(combined)
+
+    # ── Presentation builder ─────────────────────────────────────────────
+    st.divider()
+    render_presentation_builder(filtered_df, panels)
 
 
 def _render_global_filters(df: pd.DataFrame, non_numeric_cols: list) -> pd.DataFrame:
