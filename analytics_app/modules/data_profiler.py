@@ -8,13 +8,15 @@ import streamlit as st
 def render_profiling_step(df: pd.DataFrame):
     """Render the data profiling and quality report."""
     st.header("2. Data Profile & Quality Report")
-    st.markdown(
-        "Automatic profiling of your dataset. Review column statistics, "
-        "data quality issues, and suggested data types below."
-    )
 
     profile = _build_profile(df)
     quality_issues = _detect_quality_issues(df, profile)
+
+    # ── Succinct initial report ─────────────────────────────────────────────
+    st.subheader("Initial Report")
+    st.markdown(_build_initial_report(df, profile, quality_issues))
+
+    st.divider()
 
     # Summary metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -273,3 +275,63 @@ def _suggest_roles(df: pd.DataFrame, profile: pd.DataFrame):
             dimensions.append(col)
 
     return metrics, dimensions
+
+
+def _build_initial_report(df: pd.DataFrame, profile: pd.DataFrame, quality_issues: list) -> str:
+    """Build a succinct initial narrative report describing the dataset."""
+    lines = []
+
+    # Shape
+    n_rows, n_cols = df.shape
+    lines.append(
+        f"This dataset contains **{n_rows:,} rows** and **{n_cols} columns**."
+    )
+
+    # Column type breakdown
+    type_counts = profile["detected_type"].value_counts().to_dict()
+    type_parts = [f"{count} {dtype}" for dtype, count in type_counts.items()]
+    lines.append(f"Column types: {', '.join(type_parts)}.")
+
+    # Memory
+    mem_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+    lines.append(f"In-memory size: **{mem_mb:.1f} MB**.")
+
+    # Completeness
+    total_cells = n_rows * n_cols
+    missing_cells = df.isna().sum().sum()
+    completeness = (1 - missing_cells / total_cells) * 100 if total_cells > 0 else 100
+    lines.append(
+        f"Data completeness: **{completeness:.1f}%** "
+        f"({missing_cells:,} missing cells out of {total_cells:,})."
+    )
+
+    # Duplicates
+    dup_count = df.duplicated().sum()
+    if dup_count > 0:
+        lines.append(f"Duplicate rows: **{dup_count:,}** ({dup_count / n_rows * 100:.1f}%).")
+    else:
+        lines.append("No duplicate rows found.")
+
+    # Quality summary
+    high = sum(1 for q in quality_issues if q["severity"] == "high")
+    medium = sum(1 for q in quality_issues if q["severity"] == "medium")
+    low = sum(1 for q in quality_issues if q["severity"] == "low")
+    if quality_issues:
+        lines.append(
+            f"Quality flags: **{high}** high, **{medium}** medium, **{low}** low severity issue(s)."
+        )
+    else:
+        lines.append("No data quality issues detected.")
+
+    # Suggested roles
+    suggested_metrics, suggested_dimensions = _suggest_roles(df, profile)
+    if suggested_metrics:
+        lines.append(
+            f"Likely metrics: {', '.join(f'`{m}`' for m in suggested_metrics)}."
+        )
+    if suggested_dimensions:
+        lines.append(
+            f"Likely dimensions: {', '.join(f'`{d}`' for d in suggested_dimensions)}."
+        )
+
+    return "\n\n".join(lines)
