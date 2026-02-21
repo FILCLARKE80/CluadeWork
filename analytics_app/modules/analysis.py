@@ -7,6 +7,7 @@ import streamlit as st
 from analytics_app.modules.visualizations import CHART_TYPES, render_chart
 from analytics_app.modules.narrative import render_narrative
 from analytics_app.modules.ai_narrative import render_ai_narrative
+from analytics_app.modules.presentation import render_presentation_builder
 
 
 AGG_FUNCTIONS = ["sum", "mean", "median", "count", "min", "max", "std"]
@@ -192,6 +193,10 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
         st.divider()
         combined = pd.concat(result_dfs, ignore_index=True)
         _render_download(combined)
+
+    # ── Presentation builder ─────────────────────────────────────────────
+    st.divider()
+    render_presentation_builder(filtered_df, panels)
 
 
 def _render_global_filters(df: pd.DataFrame, non_numeric_cols: list) -> pd.DataFrame:
