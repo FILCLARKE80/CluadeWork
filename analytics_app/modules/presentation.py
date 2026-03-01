@@ -33,11 +33,12 @@ def _check_pptx():
 def _brand_colours():
     """Return MIFL brand colours (only call after _check_pptx)."""
     return {
-        "BLUE": RGBColor(0x10, 0x33, 0xCF),
-        "DARK": RGBColor(0x01, 0x05, 0x04),
+        "BLUE": RGBColor(0x19, 0x2D, 0x6E),        # Deep Navy #192D6E
+        "BLUE_BRIGHT": RGBColor(0x1E, 0x96, 0xD7),  # Curious Blue #1E96D7
+        "DARK": RGBColor(0x12, 0x12, 0x12),          # Cod Gray #121212
         "WHITE": RGBColor(0xFF, 0xFF, 0xFF),
         "GREY": RGBColor(0x4A, 0x4F, 0x5C),
-        "LIGHT_BG": RGBColor(0xF0, 0xF2, 0xF8),
+        "LIGHT_BG": RGBColor(0xE8, 0xF4, 0xFB),     # Light blue tint #E8F4FB
     }
 
 _DEFAULT_SECTION = {
@@ -99,7 +100,7 @@ def _add_title_slide(prs, title_text):
     sub = tf.add_paragraph()
     sub.text = "Analytics Report"
     sub.font.size = Pt(18)
-    sub.font.color.rgb = RGBColor(0x8F, 0xAE, 0xE8)
+    sub.font.color.rgb = c["BLUE_BRIGHT"]
     sub.font.name = "Calibri"
     sub.alignment = PP_ALIGN.LEFT
 

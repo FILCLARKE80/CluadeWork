@@ -22,9 +22,10 @@ st.set_page_config(
 )
 
 # ── MIFL-inspired custom styling ────────────────────────────────────────────
-# Brand palette derived from Mediolanum International Funds (mifl.ie):
-#   Persian Blue  #1033CF  (primary)
-#   Midnight Moss #010504  (text)
+# Brand palette from Banca Mediolanum / MIFL (brandfetch / mifl.ie):
+#   Deep Navy     #192D6E  (primary — "Lucky Point")
+#   Curious Blue  #1E96D7  (secondary — "Curious Blue")
+#   Cod Gray      #121212  (text)
 #   White         #FFFFFF  (background)
 # Fonts: Montserrat (headings) + Inter (body) — geometric sans-serifs
 #        that mirror the custom Mediolanum typeface characteristics.
@@ -36,19 +37,20 @@ st.markdown(
 
     /* ── Root variables ──────────────────────────────────────── */
     :root {
-        --mifl-blue:       #1033CF;
-        --mifl-blue-light: #E8EDFA;
-        --mifl-blue-mid:   #6B8ADB;
-        --mifl-dark:       #010504;
+        --mifl-blue:       #192D6E;
+        --mifl-blue-bright:#1E96D7;
+        --mifl-blue-light: #E8F4FB;
+        --mifl-blue-mid:   #4A7CC9;
+        --mifl-dark:       #121212;
         --mifl-grey:       #4A4F5C;
-        --mifl-grey-light: #F0F2F8;
+        --mifl-grey-light: #F0F4F8;
         --mifl-white:      #FFFFFF;
-        --mifl-accent:     #0D2A8A;
+        --mifl-accent:     #0F2057;
         --mifl-success:    #0F7B3F;
         --mifl-warning:    #C67D0A;
         --mifl-radius:     6px;
-        --mifl-shadow:     0 1px 3px rgba(16, 51, 207, 0.08),
-                           0 4px 12px rgba(16, 51, 207, 0.06);
+        --mifl-shadow:     0 1px 3px rgba(25, 45, 110, 0.08),
+                           0 4px 12px rgba(25, 45, 110, 0.06);
     }
 
     /* ── Global typography ───────────────────────────────────── */
@@ -71,7 +73,7 @@ st.markdown(
 
     /* ── Sidebar ─────────────────────────────────────────────── */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0A1E6E 0%, var(--mifl-blue) 100%) !important;
+        background: linear-gradient(180deg, var(--mifl-accent) 0%, var(--mifl-blue) 100%) !important;
     }
     section[data-testid="stSidebar"] * {
         color: var(--mifl-white) !important;
@@ -131,12 +133,12 @@ st.markdown(
         padding: 0.6rem 1.5rem !important;
         letter-spacing: 0.01em;
         transition: all 0.2s ease !important;
-        box-shadow: 0 2px 6px rgba(16, 51, 207, 0.25) !important;
+        box-shadow: 0 2px 6px rgba(25, 45, 110, 0.25) !important;
     }
     .stButton > button[kind="primary"]:hover,
     button[data-testid="stBaseButton-primary"]:hover {
         background: var(--mifl-accent) !important;
-        box-shadow: 0 4px 14px rgba(16, 51, 207, 0.35) !important;
+        box-shadow: 0 4px 14px rgba(25, 45, 110, 0.35) !important;
         transform: translateY(-1px);
     }
 
@@ -199,12 +201,12 @@ st.markdown(
     .stSelectbox > div > div:focus-within,
     .stMultiSelect > div > div:focus-within {
         border-color: var(--mifl-blue) !important;
-        box-shadow: 0 0 0 2px rgba(16, 51, 207, 0.15) !important;
+        box-shadow: 0 0 0 2px rgba(25, 45, 110, 0.15) !important;
     }
 
     /* ── File uploader ───────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed var(--mifl-blue-mid) !important;
+        border: 2px dashed var(--mifl-blue-bright) !important;
         border-radius: var(--mifl-radius) !important;
         background: var(--mifl-blue-light) !important;
         padding: 1.5rem !important;

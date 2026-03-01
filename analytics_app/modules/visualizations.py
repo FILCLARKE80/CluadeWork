@@ -9,23 +9,24 @@ import streamlit as st
 
 
 # ── MIFL-branded Plotly colour sequence & template ──────────────────────────
+# Brand colours: Deep Navy #192D6E (primary), Curious Blue #1E96D7 (secondary)
 _MIFL_COLORS = [
-    "#1033CF",  # Persian Blue (primary)
-    "#0D2A8A",  # Accent dark blue
-    "#6B8ADB",  # Mid blue
-    "#2E5BCC",  # Intermediate blue
-    "#8FAEE8",  # Light blue
+    "#192D6E",  # Deep Navy (primary)
+    "#1E96D7",  # Curious Blue (secondary)
+    "#4A7CC9",  # Mid blue (bridge)
     "#0F7B3F",  # Green accent
     "#C67D0A",  # Amber accent
     "#7C3AED",  # Purple accent
     "#CF1054",  # Rose accent
     "#10A5CF",  # Teal accent
+    "#6B8ADB",  # Light blue
+    "#8B5CF6",  # Light purple
 ]
 
 _mifl_template = go.layout.Template()
 _mifl_template.layout = go.Layout(
-    font=dict(family="Inter, sans-serif", color="#010504"),
-    title=dict(font=dict(family="Montserrat, sans-serif", size=18, color="#010504")),
+    font=dict(family="Inter, sans-serif", color="#121212"),
+    title=dict(font=dict(family="Montserrat, sans-serif", size=18, color="#121212")),
     colorway=_MIFL_COLORS,
     paper_bgcolor="#FFFFFF",
     plot_bgcolor="#FAFBFE",
@@ -215,7 +216,7 @@ def _build_heatmap(df, metrics, dimensions, agg_func, _color_dim, title):
     pivot_df = df.pivot_table(values=metrics[0], index=dimensions[0],
                               columns=dimensions[1], aggfunc=agg_func, fill_value=0)
     fig = px.imshow(pivot_df, title=title or f"{metrics[0]} by {dimensions[0]} × {dimensions[1]}",
-                    aspect="auto", color_continuous_scale=["#E8EDFA", "#6B8ADB", "#1033CF", "#0D2A8A"])
+                    aspect="auto", color_continuous_scale=["#E8F4FB", "#1E96D7", "#4A7CC9", "#192D6E"])
     return fig
 
 
@@ -435,7 +436,7 @@ def _heatmap(df, metrics, dimensions, agg_func, title):
         pivot_df,
         title=title or f"{metrics[0]} by {dimensions[0]} × {dimensions[1]}",
         aspect="auto",
-        color_continuous_scale=["#E8EDFA", "#6B8ADB", "#1033CF", "#0D2A8A"],
+        color_continuous_scale=["#E8F4FB", "#1E96D7", "#4A7CC9", "#192D6E"],
     )
     st.plotly_chart(fig, use_container_width=True)
     return pivot_df
