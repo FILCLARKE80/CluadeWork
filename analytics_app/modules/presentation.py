@@ -146,6 +146,76 @@ def _to_bullets(text, max_words=150):
     return result or [_truncate_to_words(text, max_words)]
 
 
+def _add_ai_insights_slide(prs):
+    """Add an AI-Powered Insights slide (appears right after the cover).
+
+    Pulls the cached narrative from ``st.session_state["ai_narrative"]``.
+    If no narrative has been generated yet the slide is silently skipped.
+    """
+    raw = st.session_state.get("ai_narrative", "")
+    if not raw or raw.startswith("**Error:"):
+        return
+
+    c = _brand_colours()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
+    slide_w = prs.slide_width
+    slide_h = prs.slide_height
+    margin_lr = 0.5
+    content_w = 11.69 - 2 * margin_lr
+
+    # ── Top bar ──────────────────────────────────────────────────────────────
+    bar = slide.shapes.add_shape(1, Emu(0), Emu(0), slide_w, Inches(0.7))
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = c["BLUE"]
+    bar.line.fill.background()
+
+    ttl = slide.shapes.add_textbox(
+        Inches(margin_lr), Inches(0.0), Inches(content_w), Inches(0.7),
+    )
+    tf = ttl.text_frame
+    tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    p = tf.paragraphs[0]
+    p.text = "AI-Powered Insights"
+    p.font.size = Pt(22)
+    p.font.bold = True
+    p.font.color.rgb = c["WHITE"]
+    p.font.name = "Calibri"
+
+    # ── Body ─────────────────────────────────────────────────────────────────
+    body_top = Inches(0.9)
+    body_h = slide_h - body_top - Inches(0.4)
+
+    # Light background box
+    nbox = slide.shapes.add_shape(
+        1, Inches(margin_lr - 0.15), body_top,
+        Inches(content_w + 0.3), body_h,
+    )
+    nbox.fill.solid()
+    nbox.fill.fore_color.rgb = c["LIGHT_BG"]
+    nbox.line.fill.background()
+
+    # Text frame
+    txBox = slide.shapes.add_textbox(
+        Inches(margin_lr), body_top + Inches(0.1),
+        Inches(content_w), body_h - Inches(0.2),
+    )
+    tf = txBox.text_frame
+    tf.word_wrap = True
+    tf.auto_size = None
+    tf.vertical_anchor = MSO_ANCHOR.TOP
+
+    bullets = _to_bullets(raw, max_words=350)
+    for i, bullet_text in enumerate(bullets):
+        para = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        para.text = f"\u2022  {bullet_text}"
+        para.font.size = Pt(11)
+        para.font.color.rgb = c["DARK"]
+        para.font.name = "Calibri"
+        para.line_spacing = Pt(16)
+        para.space_after = Pt(4)
+
+
 def _add_section_slide(prs, section, panels, df):
     """Add a content slide for one section."""
     c = _brand_colours()
@@ -184,22 +254,23 @@ def _add_section_slide(prs, section, panels, df):
     if layout == "2 panels":
         panel_indices.append(section.get("panel_2", 0))
 
-    # Build narrative: manual text + auto-pulled AI panel insights
-    narrative_parts = []
-    manual_narrative = section.get("narrative", "").strip()
-    if manual_narrative:
-        narrative_parts.append(manual_narrative)
+    # Collect AI panel insights (auto-pulled)
+    ai_parts = []
     for pidx in panel_indices:
         ai_insight = st.session_state.get(f"panel_insight_{pidx}", "")
         if ai_insight and not ai_insight.startswith("**Error:"):
-            narrative_parts.append(ai_insight)
-    raw_narrative = "\n\n".join(narrative_parts)
-    bullets = _to_bullets(raw_narrative) if raw_narrative else []
-    has_narrative = bool(bullets)
+            ai_parts.append(ai_insight)
+    ai_bullets = _to_bullets("\n\n".join(ai_parts), max_words=150) if ai_parts else []
+
+    # Collect optional additional narrative (user-supplied)
+    manual_narrative = section.get("narrative", "").strip()
+    manual_bullets = _to_bullets(manual_narrative, max_words=100) if manual_narrative else []
+
+    has_content = bool(ai_bullets or manual_bullets)
 
     # Chart sizing — 15 % smaller than full-bleed to leave room for commentary
     chart_top = Inches(0.9)
-    chart_height_in = 3.2 if has_narrative else 4.7
+    chart_height_in = 3.2 if has_content else 4.7
     narrative_top = Inches(0.9 + chart_height_in + 0.15)
     narrative_h = slide_h - narrative_top - Inches(0.3)  # fill to bottom margin
 
@@ -236,11 +307,10 @@ def _add_section_slide(prs, section, panels, df):
                 width=width, height=Inches(chart_height_in),
             )
 
-    # ── Narrative (bullet format) ─────────────────────────────────────────────
-    if has_narrative:
+    # ── Insights / Additional Narrative ───────────────────────────────────────
+    if has_content:
         box_left = Inches(margin_lr - 0.15)
         box_width = Inches(content_w + 0.3)
-        pad_lr = 0.15  # inner padding inside the box
 
         # Light background box
         nbox = slide.shapes.add_shape(
@@ -260,24 +330,50 @@ def _add_section_slide(prs, section, panels, df):
         tf.auto_size = None
         tf.vertical_anchor = MSO_ANCHOR.TOP
 
-        # "Key Insights" label
-        label = tf.paragraphs[0]
-        label.text = "Key Insights"
-        label.font.size = Pt(11)
-        label.font.bold = True
-        label.font.color.rgb = c["BLUE"]
-        label.font.name = "Calibri"
-        label.space_after = Pt(4)
+        first_paragraph = True
 
-        # Bullet points
-        for bullet_text in bullets:
-            bp = tf.add_paragraph()
-            bp.text = f"\u2022  {bullet_text}"
-            bp.font.size = Pt(9)
-            bp.font.color.rgb = c["DARK"]
-            bp.font.name = "Calibri"
-            bp.line_spacing = Pt(13)
-            bp.space_after = Pt(2)
+        # AI-generated insights
+        if ai_bullets:
+            label = tf.paragraphs[0]
+            label.text = "Key Insights"
+            label.font.size = Pt(11)
+            label.font.bold = True
+            label.font.color.rgb = c["BLUE"]
+            label.font.name = "Calibri"
+            label.space_after = Pt(4)
+            first_paragraph = False
+
+            for bullet_text in ai_bullets:
+                bp = tf.add_paragraph()
+                bp.text = f"\u2022  {bullet_text}"
+                bp.font.size = Pt(9)
+                bp.font.color.rgb = c["DARK"]
+                bp.font.name = "Calibri"
+                bp.line_spacing = Pt(13)
+                bp.space_after = Pt(2)
+
+        # Optional additional narrative
+        if manual_bullets:
+            if first_paragraph:
+                lbl = tf.paragraphs[0]
+            else:
+                lbl = tf.add_paragraph()
+            lbl.text = "Additional Notes"
+            lbl.font.size = Pt(11)
+            lbl.font.bold = True
+            lbl.font.color.rgb = c["GREY"]
+            lbl.font.name = "Calibri"
+            lbl.space_before = Pt(8) if not first_paragraph else Pt(0)
+            lbl.space_after = Pt(4)
+
+            for bullet_text in manual_bullets:
+                bp = tf.add_paragraph()
+                bp.text = f"\u2022  {bullet_text}"
+                bp.font.size = Pt(9)
+                bp.font.color.rgb = c["DARK"]
+                bp.font.name = "Calibri"
+                bp.line_spacing = Pt(13)
+                bp.space_after = Pt(2)
 
 
 def generate_pptx(sections, panels, df, report_title="Analytics Report"):
@@ -289,6 +385,7 @@ def generate_pptx(sections, panels, df, report_title="Analytics Report"):
     prs.slide_height = Inches(8.27)
 
     _add_title_slide(prs, report_title)
+    _add_ai_insights_slide(prs)
 
     for section in sections:
         _add_section_slide(prs, section, panels, df)
@@ -314,8 +411,9 @@ def render_presentation_builder(df: pd.DataFrame, panels: list):
 
     st.subheader("Presentation Builder")
     st.markdown(
-        "Compose a PowerPoint report by adding sections. Each section becomes "
-        "a slide with 1 or 2 chart panels and an optional narrative."
+        "Compose a PowerPoint report by adding sections. AI-Powered Insights "
+        "appear as the first slide after the cover. Each section becomes a slide "
+        "with 1 or 2 chart panels, AI analysis, and an optional additional narrative."
     )
 
     if not panels:
@@ -408,13 +506,13 @@ def render_presentation_builder(df: pd.DataFrame, panels: list):
                     st.markdown("*Single panel layout — no second panel.*")
                     section["panel_2"] = 0
 
-            # Narrative
+            # Additional narrative (optional)
             section["narrative"] = st.text_area(
-                "Narrative",
+                "Additional Narrative (optional)",
                 value=section.get("narrative", ""),
-                height=100,
+                height=80,
                 key=f"pres_narr_{idx}",
-                placeholder="Add commentary, insights, or context for this slide...",
+                placeholder="Optional: add extra commentary or context beyond the AI insights...",
             )
 
     # ── Export ────────────────────────────────────────────────────────────────
