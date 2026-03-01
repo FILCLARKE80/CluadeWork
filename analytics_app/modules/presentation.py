@@ -78,16 +78,17 @@ def _add_title_slide(prs, title_text):
 
     # Blue banner across top
     shp = slide.shapes.add_shape(
-        1, Emu(0), Emu(0), prs.slide_width, Inches(2.2),  # MSO_SHAPE.RECTANGLE = 1
+        1, Emu(0), Emu(0), prs.slide_width, Inches(2.5),  # MSO_SHAPE.RECTANGLE = 1
     )
     shp.fill.solid()
     shp.fill.fore_color.rgb = c["BLUE"]
     shp.line.fill.background()
 
-    # Title text
-    txBox = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(8.4), Inches(1.2))
+    # Title text — vertically centred in banner
+    txBox = slide.shapes.add_textbox(Inches(0.8), Inches(0.5), Inches(10.0), Inches(1.5))
     tf = txBox.text_frame
     tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
     p = tf.paragraphs[0]
     p.text = title_text
     p.font.size = Pt(36)
@@ -105,6 +106,46 @@ def _add_title_slide(prs, title_text):
     sub.alignment = PP_ALIGN.LEFT
 
 
+def _truncate_to_words(text, max_words=150):
+    """Truncate text to approximately *max_words* words."""
+    words = text.split()
+    if len(words) <= max_words:
+        return text
+    return " ".join(words[:max_words]) + "…"
+
+
+def _to_bullets(text, max_words=150):
+    """Convert narrative text into a list of concise bullet strings.
+
+    Splits on newlines, sentence boundaries, and markdown bullets,
+    strips markdown bold markers, then caps total length at *max_words*.
+    """
+    import re
+
+    # Normalise: strip markdown bold/italic markers
+    text = re.sub(r"\*{1,2}(.+?)\*{1,2}", r"\1", text)
+    # Split on existing bullet markers, numbered lists, or double-newlines
+    raw_lines = re.split(r"\n[\s\-\u2022\u2013*]*|\n{2,}|\.\s+(?=[A-Z])", text)
+    bullets = []
+    for line in raw_lines:
+        line = line.strip(" \t\n\r-•–*.")
+        if line:
+            bullets.append(line)
+    # Collapse into word-limited set
+    result = []
+    word_count = 0
+    for b in bullets:
+        words = b.split()
+        if word_count + len(words) > max_words:
+            remaining = max_words - word_count
+            if remaining > 0:
+                result.append(" ".join(words[:remaining]) + "…")
+            break
+        result.append(b)
+        word_count += len(words)
+    return result or [_truncate_to_words(text, max_words)]
+
+
 def _add_section_slide(prs, section, panels, df):
     """Add a content slide for one section."""
     c = _brand_colours()
@@ -112,16 +153,23 @@ def _add_section_slide(prs, section, panels, df):
     slide_w = prs.slide_width
     slide_h = prs.slide_height
 
+    # Usable content width (with margins)
+    margin_lr = 0.5  # inches each side
+    content_w = 11.69 - 2 * margin_lr  # ≈ 10.69″
+
     # ── Top bar ──────────────────────────────────────────────────────────────
     bar = slide.shapes.add_shape(1, Emu(0), Emu(0), slide_w, Inches(0.7))
     bar.fill.solid()
     bar.fill.fore_color.rgb = c["BLUE"]
     bar.line.fill.background()
 
-    # Section title in bar
-    ttl = slide.shapes.add_textbox(Inches(0.5), Inches(0.1), Inches(9), Inches(0.5))
+    # Section title — vertically centred inside bar
+    ttl = slide.shapes.add_textbox(
+        Inches(margin_lr), Inches(0.0), Inches(content_w), Inches(0.7),
+    )
     tf = ttl.text_frame
     tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
     p = tf.paragraphs[0]
     p.text = section.get("title") or "Untitled Section"
     p.font.size = Pt(22)
@@ -145,13 +193,15 @@ def _add_section_slide(prs, section, panels, df):
         ai_insight = st.session_state.get(f"panel_insight_{pidx}", "")
         if ai_insight and not ai_insight.startswith("**Error:"):
             narrative_parts.append(ai_insight)
-    narrative_text = "\n\n".join(narrative_parts)
-    has_narrative = bool(narrative_text)
+    raw_narrative = "\n\n".join(narrative_parts)
+    bullets = _to_bullets(raw_narrative) if raw_narrative else []
+    has_narrative = bool(bullets)
 
-    # Calculate chart area — leave room for narrative at bottom
+    # Chart sizing — 15 % smaller than full-bleed to leave room for commentary
     chart_top = Inches(0.9)
-    chart_height_in = 3.8 if has_narrative else 5.5
+    chart_height_in = 3.2 if has_narrative else 4.7
     narrative_top = Inches(0.9 + chart_height_in + 0.15)
+    narrative_h = slide_h - narrative_top - Inches(0.3)  # fill to bottom margin
 
     for i, pidx in enumerate(panel_indices):
         if pidx < 0 or pidx >= len(panels):
@@ -170,13 +220,14 @@ def _add_section_slide(prs, section, panels, df):
             continue
 
         if layout == "1 panel":
-            img_w, img_h = 900, int(chart_height_in * 130)
-            left = Inches(0.5)
-            width = Inches(9.0)
+            img_w, img_h = 1000, int(chart_height_in * 130)
+            left = Inches(margin_lr)
+            width = Inches(content_w)
         else:
-            img_w, img_h = 550, int(chart_height_in * 130)
-            left = Inches(0.3 + i * 4.85)
-            width = Inches(4.6)
+            panel_w = (content_w - 0.3) / 2  # 0.3″ gap between panels
+            img_w, img_h = 600, int(chart_height_in * 130)
+            left = Inches(margin_lr + i * (panel_w + 0.3))
+            width = Inches(panel_w)
 
         png_bytes = _fig_to_png(fig, width=img_w, height=img_h)
         if png_bytes:
@@ -185,50 +236,57 @@ def _add_section_slide(prs, section, panels, df):
                 width=width, height=Inches(chart_height_in),
             )
 
-    # ── Narrative ────────────────────────────────────────────────────────────
-    if narrative_text:
-        # Light grey background box
+    # ── Narrative (bullet format) ─────────────────────────────────────────────
+    if has_narrative:
+        box_left = Inches(margin_lr - 0.15)
+        box_width = Inches(content_w + 0.3)
+        pad_lr = 0.15  # inner padding inside the box
+
+        # Light background box
         nbox = slide.shapes.add_shape(
-            1, Inches(0.3), narrative_top,
-            Inches(9.4), Inches(1.9),
+            1, box_left, narrative_top, box_width, narrative_h,
         )
         nbox.fill.solid()
         nbox.fill.fore_color.rgb = c["LIGHT_BG"]
         nbox.line.fill.background()
 
-        # Narrative text
+        # Text frame — inset by padding so text aligns neatly
         txBox = slide.shapes.add_textbox(
-            Inches(0.5), narrative_top + Inches(0.1),
-            Inches(9.0), Inches(1.7),
+            Inches(margin_lr), narrative_top + Inches(0.08),
+            Inches(content_w), narrative_h - Inches(0.16),
         )
         tf = txBox.text_frame
         tf.word_wrap = True
         tf.auto_size = None
+        tf.vertical_anchor = MSO_ANCHOR.TOP
 
-        # "Narrative" label
+        # "Key Insights" label
         label = tf.paragraphs[0]
-        label.text = "Narrative"
+        label.text = "Key Insights"
         label.font.size = Pt(11)
         label.font.bold = True
         label.font.color.rgb = c["BLUE"]
         label.font.name = "Calibri"
         label.space_after = Pt(4)
 
-        # Body text
-        body = tf.add_paragraph()
-        body.text = narrative_text
-        body.font.size = Pt(10)
-        body.font.color.rgb = c["DARK"]
-        body.font.name = "Calibri"
-        body.line_spacing = Pt(14)
+        # Bullet points
+        for bullet_text in bullets:
+            bp = tf.add_paragraph()
+            bp.text = f"\u2022  {bullet_text}"
+            bp.font.size = Pt(9)
+            bp.font.color.rgb = c["DARK"]
+            bp.font.name = "Calibri"
+            bp.line_spacing = Pt(13)
+            bp.space_after = Pt(2)
 
 
 def generate_pptx(sections, panels, df, report_title="Analytics Report"):
     """Generate a PowerPoint file and return bytes."""
     _check_pptx()
     prs = _Presentation()
-    prs.slide_width = Inches(10)
-    prs.slide_height = Inches(7.5)
+    # Landscape A4: 297 mm × 210 mm ≈ 11.69″ × 8.27″
+    prs.slide_width = Inches(11.69)
+    prs.slide_height = Inches(8.27)
 
     _add_title_slide(prs, report_title)
 
