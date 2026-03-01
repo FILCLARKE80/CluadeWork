@@ -161,6 +161,100 @@ def generate_ai_narrative(
         return "**Error:** Could not connect to the Anthropic API. Check your network."
 
 
+def _build_panel_context(panel: dict, agg_df: pd.DataFrame) -> str:
+    """Build a concise data context string for a single panel."""
+    lines = []
+    chart_type = panel.get("chart_type", "Chart")
+    metrics = panel.get("metrics", [])
+    dimensions = panel.get("dimensions", [])
+    agg_func = panel.get("agg_func", "sum")
+    title = panel.get("title", "")
+
+    lines.append(f"Chart type: {chart_type}")
+    if title:
+        lines.append(f"Title: {title}")
+    lines.append(f"Metrics: {', '.join(metrics) if metrics else 'None'}")
+    lines.append(f"Dimensions (group by): {', '.join(dimensions) if dimensions else 'None'}")
+    lines.append(f"Aggregation: {agg_func}")
+    lines.append("")
+
+    if agg_df is not None and not agg_df.empty:
+        display_df = agg_df.head(50)
+        lines.append(f"Aggregated data ({len(agg_df)} rows, showing up to 50):")
+        lines.append(display_df.to_string(index=False))
+    else:
+        lines.append("(No aggregated data available.)")
+
+    return "\n".join(lines)
+
+
+def generate_panel_insight(panel: dict, agg_df: pd.DataFrame) -> str | None:
+    """Call the Claude API and return a short AI insight for a single panel."""
+    client = _get_client()
+    if client is None:
+        return None
+
+    model = st.session_state.get("ai_model", MODEL_OPTIONS[0])
+    panel_context = _build_panel_context(panel, agg_df)
+
+    system_prompt = (
+        "You are a senior data analyst. The user has a chart panel from their "
+        "dashboard. Provide a brief, insightful analysis of the data shown. "
+        "Highlight the most important pattern, trend, or outlier. Reference "
+        "specific numbers and categories. Be concise — maximum 200 words. "
+        "Use plain text, no markdown headers."
+    )
+
+    user_message = (
+        "Here is the panel data:\n\n"
+        f"{panel_context}\n\n"
+        "Provide a brief analysis (max 200 words)."
+    )
+
+    try:
+        with client.messages.stream(
+            model=model,
+            max_tokens=512,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        ) as stream:
+            final = stream.get_final_message()
+
+        return final.content[0].text
+
+    except anthropic.AuthenticationError:
+        return "**Error:** Invalid API key."
+    except anthropic.RateLimitError:
+        return "**Error:** Rate limited. Please wait and try again."
+    except anthropic.APIStatusError as e:
+        return f"**Error:** API error ({e.status_code}): {e.message}"
+    except anthropic.APIConnectionError:
+        return "**Error:** Could not connect to the Anthropic API."
+
+
+def render_panel_insight(panel_idx: int, panel: dict, agg_df: pd.DataFrame):
+    """Render a per-panel AI insight below the chart."""
+    has_key = bool(
+        st.session_state.get("anthropic_api_key")
+        or os.environ.get("ANTHROPIC_API_KEY")
+    )
+    if not has_key:
+        return
+
+    cache_key = f"panel_insight_{panel_idx}"
+
+    if st.button("AI Analysis", key=f"gen_panel_insight_{panel_idx}",
+                 use_container_width=True):
+        with st.spinner("Analysing..."):
+            insight = generate_panel_insight(panel, agg_df)
+            if insight:
+                st.session_state[cache_key] = insight
+
+    cached = st.session_state.get(cache_key)
+    if cached:
+        st.caption(cached)
+
+
 def render_ai_narrative(
     df: pd.DataFrame,
     panels: list,

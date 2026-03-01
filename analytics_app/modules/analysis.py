@@ -6,7 +6,7 @@ import streamlit as st
 
 from analytics_app.modules.visualizations import CHART_TYPES, render_chart
 from analytics_app.modules.narrative import render_narrative
-from analytics_app.modules.ai_narrative import render_ai_narrative
+from analytics_app.modules.ai_narrative import render_ai_narrative, render_panel_insight
 from analytics_app.modules.presentation import render_presentation_builder
 
 
@@ -158,7 +158,8 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
         row_panels = panels[row_start : row_start + n_layout_cols]
         cols = st.columns(len(row_panels))
 
-        for col, panel in zip(cols, row_panels):
+        for offset, (col, panel) in enumerate(zip(cols, row_panels)):
+            panel_idx = row_start + offset
             with col:
                 result_df = render_chart(
                     filtered_df,
@@ -171,6 +172,7 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
                 )
                 if result_df is not None:
                     result_dfs.append(result_df)
+                    render_panel_insight(panel_idx, panel, result_df)
 
     # ── Statistical narrative (uses first panel's config) ─────────────────
     if panels:
