@@ -65,7 +65,7 @@ def _fig_to_png(fig, width=900, height=500):
         if "Chrome" in str(exc) or "chrome" in str(exc) or "kaleido" in str(exc).lower():
             raise RuntimeError(
                 "Chart image export requires Chrome for Kaleido. "
-                "Run 'plotly_get_chrome' on the server or set the startup command to include it."
+                "Run 'python -c \"import kaleido; kaleido.get_chrome_sync()\"' on the server or set the startup command to include it."
             ) from exc
         raise
 
