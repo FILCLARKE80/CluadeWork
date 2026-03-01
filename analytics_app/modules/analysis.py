@@ -172,7 +172,7 @@ def render_analysis_step(df: pd.DataFrame, profile: pd.DataFrame):
                 )
                 if result_df is not None:
                     result_dfs.append(result_df)
-                    render_panel_insight(panel_idx, panel, result_df)
+                    render_panel_insight(panel_idx, panel, result_df, df=filtered_df)
 
     # ── Statistical narrative (uses first panel's config) ─────────────────
     if panels:

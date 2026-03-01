@@ -161,8 +161,17 @@ def generate_ai_narrative(
         return "**Error:** Could not connect to the Anthropic API. Check your network."
 
 
-def _build_panel_context(panel: dict, agg_df: pd.DataFrame) -> str:
-    """Build a concise data context string for a single panel."""
+def _build_panel_context(
+    panel: dict,
+    agg_df: pd.DataFrame,
+    df: pd.DataFrame | None = None,
+) -> str:
+    """Build a concise data context string for a single panel.
+
+    When the full dataset *df* is provided, relevant numeric summary
+    statistics and correlations for the panel's metrics are included
+    so the AI can connect panel-level observations to broader themes.
+    """
     lines = []
     chart_type = panel.get("chart_type", "Chart")
     metrics = panel.get("metrics", [])
@@ -178,6 +187,29 @@ def _build_panel_context(panel: dict, agg_df: pd.DataFrame) -> str:
     lines.append(f"Aggregation: {agg_func}")
     lines.append("")
 
+    # Dataset-level context for richer analysis
+    if df is not None and not df.empty:
+        numeric_cols = df.select_dtypes(include="number").columns.tolist()
+        # Summary stats for the panel's metrics (if they exist in df)
+        metric_cols = [m for m in metrics if m in numeric_cols]
+        if metric_cols:
+            desc = df[metric_cols].describe().round(2)
+            lines.append("Dataset summary for panel metrics:")
+            lines.append(desc.to_string())
+            lines.append("")
+        # Correlations between panel metrics and other numeric columns
+        if metric_cols and len(numeric_cols) >= 2:
+            corr = df[numeric_cols].corr().round(3)
+            # Show only rows for the panel's metrics to keep it concise
+            relevant = corr.loc[
+                corr.index.isin(metric_cols),
+                ~corr.columns.isin(metric_cols) | corr.columns.isin(metric_cols),
+            ]
+            if not relevant.empty:
+                lines.append("Correlations for panel metrics:")
+                lines.append(relevant.to_string())
+                lines.append("")
+
     if agg_df is not None and not agg_df.empty:
         display_df = agg_df.head(50)
         lines.append(f"Aggregated data ({len(agg_df)} rows, showing up to 50):")
@@ -188,27 +220,33 @@ def _build_panel_context(panel: dict, agg_df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def generate_panel_insight(panel: dict, agg_df: pd.DataFrame) -> str | None:
+def generate_panel_insight(
+    panel: dict,
+    agg_df: pd.DataFrame,
+    df: pd.DataFrame | None = None,
+) -> str | None:
     """Call the Claude API and return a short AI insight for a single panel."""
     client = _get_client()
     if client is None:
         return None
 
     model = st.session_state.get("ai_model", MODEL_OPTIONS[0])
-    panel_context = _build_panel_context(panel, agg_df)
+    panel_context = _build_panel_context(panel, agg_df, df=df)
 
     system_prompt = (
         "You are a senior data analyst. The user has a chart panel from their "
-        "dashboard. Provide a brief, insightful analysis of the data shown. "
-        "Highlight the most important pattern, trend, or outlier. Reference "
-        "specific numbers and categories. Be concise — maximum 200 words. "
-        "Use plain text, no markdown headers."
+        "dashboard. Analyse the panel data together with the dataset-level "
+        "statistics provided to identify key themes and patterns. "
+        "Highlight the most important trend, driver, or outlier. Reference "
+        "specific numbers and categories. Connect your observations to "
+        "broader dataset patterns where the correlations support it. "
+        "Be concise — maximum 150 words. Use plain text, no markdown headers."
     )
 
     user_message = (
         "Here is the panel data:\n\n"
         f"{panel_context}\n\n"
-        "Provide a brief analysis (max 200 words)."
+        "Provide a brief analysis (max 150 words)."
     )
 
     try:
@@ -232,7 +270,12 @@ def generate_panel_insight(panel: dict, agg_df: pd.DataFrame) -> str | None:
         return "**Error:** Could not connect to the Anthropic API."
 
 
-def render_panel_insight(panel_idx: int, panel: dict, agg_df: pd.DataFrame):
+def render_panel_insight(
+    panel_idx: int,
+    panel: dict,
+    agg_df: pd.DataFrame,
+    df: pd.DataFrame | None = None,
+):
     """Render a per-panel AI insight below the chart."""
     has_key = bool(
         st.session_state.get("anthropic_api_key")
@@ -246,7 +289,7 @@ def render_panel_insight(panel_idx: int, panel: dict, agg_df: pd.DataFrame):
     if st.button("AI Analysis", key=f"gen_panel_insight_{panel_idx}",
                  use_container_width=True):
         with st.spinner("Analysing..."):
-            insight = generate_panel_insight(panel, agg_df)
+            insight = generate_panel_insight(panel, agg_df, df=df)
             if insight:
                 st.session_state[cache_key] = insight
 
