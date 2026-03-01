@@ -131,16 +131,27 @@ def _add_section_slide(prs, section, panels, df):
 
     # ── Charts ───────────────────────────────────────────────────────────────
     layout = section.get("layout", "1 panel")
-    has_narrative = bool(section.get("narrative", "").strip())
+
+    panel_indices = [section.get("panel_1", 0)]
+    if layout == "2 panels":
+        panel_indices.append(section.get("panel_2", 0))
+
+    # Build narrative: manual text + auto-pulled AI panel insights
+    narrative_parts = []
+    manual_narrative = section.get("narrative", "").strip()
+    if manual_narrative:
+        narrative_parts.append(manual_narrative)
+    for pidx in panel_indices:
+        ai_insight = st.session_state.get(f"panel_insight_{pidx}", "")
+        if ai_insight and not ai_insight.startswith("**Error:"):
+            narrative_parts.append(ai_insight)
+    narrative_text = "\n\n".join(narrative_parts)
+    has_narrative = bool(narrative_text)
 
     # Calculate chart area — leave room for narrative at bottom
     chart_top = Inches(0.9)
     chart_height_in = 3.8 if has_narrative else 5.5
     narrative_top = Inches(0.9 + chart_height_in + 0.15)
-
-    panel_indices = [section.get("panel_1", 0)]
-    if layout == "2 panels":
-        panel_indices.append(section.get("panel_2", 0))
 
     for i, pidx in enumerate(panel_indices):
         if pidx < 0 or pidx >= len(panels):
@@ -175,7 +186,6 @@ def _add_section_slide(prs, section, panels, df):
             )
 
     # ── Narrative ────────────────────────────────────────────────────────────
-    narrative_text = section.get("narrative", "").strip()
     if narrative_text:
         # Light grey background box
         nbox = slide.shapes.add_shape(
