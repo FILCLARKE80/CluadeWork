@@ -62,10 +62,10 @@ def _fig_to_png(fig, width=900, height=500):
     try:
         return fig.to_image(format="png", width=width, height=height, scale=2)
     except Exception as exc:
-        if "Chrome" in str(exc) or "chrome" in str(exc) or "kaleido" in str(exc).lower():
+        if "kaleido" in str(exc).lower():
             raise RuntimeError(
-                "Chart image export requires Chrome for Kaleido. "
-                "Run 'python -c \"import kaleido; kaleido.get_chrome_sync()\"' on the server or set the startup command to include it."
+                "Chart image export requires the kaleido package. "
+                "Install it with: pip install 'kaleido>=0.2.1,<1.0.0'"
             ) from exc
         raise
 
